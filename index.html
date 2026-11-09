@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Contas da Casa</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f5f4a">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Contas">
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Contas da casa de Lucas e Nicoli: lançamentos do mês, divisão de gastos e dashboard de análise.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -364,6 +372,11 @@ footer{color:var(--ink-3);font-size:12px;padding-block:10px 30px}
   </div>
 </div>
 
+<div id="installBanner" hidden style="position:sticky;top:0;z-index:40;background:var(--accent);color:var(--accent-ink);padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:13px;font-weight:600">
+  <span>Instala o Contas da Casa no seu celular, igual um app.</span>
+  <button type="button" id="installBtn" class="btn" style="font-size:12px;padding:5px 12px;background:var(--accent-ink);color:var(--accent)">Instalar</button>
+  <button type="button" id="installDismiss" aria-label="Fechar" style="background:none;border:0;color:inherit;font-size:16px;line-height:1;cursor:pointer">×</button>
+</div>
 <header class="top">
   <div class="wrap">
     <div class="brand">
@@ -375,6 +388,7 @@ footer{color:var(--ink-3);font-size:12px;padding-block:10px 30px}
       <button role="tab" id="tab-dash" aria-selected="false" data-view="dashboard">Dashboard</button>
     </nav>
     <button class="btn ghost" id="inviteBtn" type="button" style="font-size:12px;padding:6px 10px" title="Convidar alguém pra casa">+ Convidar</button>
+    <button class="btn ghost" id="newAccountBtn" type="button" style="font-size:12px;padding:6px 10px" title="Gerar link pra alguém criar a própria conta do zero" hidden>+ Nova conta</button>
     <button class="btn ghost" id="logoutBtn" type="button" style="font-size:12px;padding:6px 10px" title="Sair da conta">Sair</button>
   </div>
 </header>
@@ -529,6 +543,17 @@ footer{color:var(--ink-3);font-size:12px;padding-block:10px 30px}
     <p class="sub" style="margin:0 0 10px">Só quem receber esse link (ou código) de você consegue entrar na casa. Até 5 pessoas no total.</p>
     <div class="invite-box" style="margin-bottom:8px"><span id="inviteModalCode"></span><button class="btn" type="button" id="inviteModalCopyCode">Copiar código</button></div>
     <button class="btn primary" type="button" id="inviteModalCopyLink" style="width:100%">Copiar link de convite</button>
+  </div>
+</div>
+
+<div class="modal-ov" id="newAccountModalOv" hidden>
+  <div class="modal" role="dialog" aria-label="Link de nova conta" style="max-width:380px">
+    <div class="modal-head">
+      <h2>Nova conta (começa do zero)</h2>
+      <button type="button" class="cp-close" id="newAccountModalClose" aria-label="Fechar">×</button>
+    </div>
+    <p class="sub" style="margin:0 0 10px">Só quem abrir esse link consegue criar uma conta e começar uma casa própria, com dados zerados. Cada link vale pra 1 cadastro.</p>
+    <button class="btn primary" type="button" id="newAccountCopyLink" style="width:100%">Gerar e copiar link</button>
   </div>
 </div>
 
@@ -1064,6 +1089,26 @@ function show(view){
 }
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{ const v=b.dataset.view; if(location.hash==='#'+v) show(v); else location.hash = v; });
 
+/* ---------- PWA: instalar no celular ---------- */
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', e=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (!localStorage.getItem('contasCasa.installDismissed')) $('#installBanner').hidden = false;
+});
+$('#installBtn').onclick = async ()=>{
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  $('#installBanner').hidden = true;
+};
+$('#installDismiss').onclick = ()=>{ $('#installBanner').hidden = true; try{ localStorage.setItem('contasCasa.installDismissed','1'); }catch(e){} };
+window.addEventListener('appinstalled', ()=>{ $('#installBanner').hidden = true; });
+
 /* ---------- LOGIN + CASA (Supabase) ---------- */
 const SB_URL = 'https://ubcxtbbmiacicsqkmsqe.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViY3h0YmJtaWFjaWNzcWttc3FlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQyMDU4NjYsImV4cCI6MjEwOTc4MTg2Nn0.M-bT6NB2qjmoprodtk0ZMt80bDyCvSbQQlYv59oXEwM';
@@ -1094,6 +1139,7 @@ function applyMembers(rows){
   const sub = $('#brandSub'); if (sub) sub.textContent = PEOPLE.join(' & ');
   renderWhoRadios();
   const pd = $('#openPadrao'); if (pd) pd.hidden = PEOPLE.length!==2;
+  const nb = $('#newAccountBtn'); if (nb) nb.hidden = !isAdmin;
 }
 function renderWhoRadios(){
   const box = $('#whoRadios'); if (!box) return;
@@ -1144,7 +1190,18 @@ function showGateStep(step){
   $('#gateInvite').hidden = step!=='invite';
   $('#gateLogout').hidden = step==='auth';
 }
-function openGate(step){ $('#gateLoading').hidden=true; $('#gate').hidden=false; showGateStep(step); if (step==='household') applyPendingJoinCode(); }
+function openGate(step){
+  $('#gateLoading').hidden=true; $('#gate').hidden=false; showGateStep(step);
+  if (step==='household'){
+    applyPendingJoinCode();
+    if (!isAdmin){
+      if (pendingNewAccountCode) $('#tabCreateHouse').click();
+      else if (!pendingJoinCode){
+        $('#gateHousehold').innerHTML = '<p class="sub">Você precisa de um link de convite do administrador pra continuar. Peça o link de "Nova conta" (pra começar sua própria casa) ou o link de convite de uma casa.</p>';
+      }
+    }
+  }
+}
 function closeGate(){ $('#gate').hidden=true; $('#gateLoading').hidden=true; }
 
 $('#tabLogin').onclick = ()=>{ $('#tabLogin').setAttribute('aria-selected','true'); $('#tabSignup').setAttribute('aria-selected','false'); $('#authSubmit').textContent='Entrar'; };
@@ -1169,27 +1226,39 @@ $('#authForm').addEventListener('submit', async e=>{
 });
 
 async function afterLogin(){
+  const { data: { user } } = await sb.auth.getUser();
+  isAdmin = user?.email === ADMIN_EMAIL;
   const { data: h } = await sb.rpc('my_household');
   if (h && h.id) await enterHousehold(h); else openGate('household');
 }
 
-/* link de convite (?#join=codigo): só quem recebe o link cai direto na tela de "entrar com código" */
+/* link de convite (#join=codigo): só quem recebe o link cai direto na tela de "entrar com código" */
+/* link de nova conta (#newaccount=codigo): só quem o admin manda consegue criar casa própria, do zero */
+const ADMIN_EMAIL = 'lucas.edfisica92@gmail.com';
+let isAdmin = false;
 function inviteLinkFor(code){ return location.origin + location.pathname + '#join=' + code; }
-let pendingJoinCode = null;
-(function parseJoinHash(){
-  const m = location.hash.match(/^#join=([a-z0-9]+)$/i);
-  if (m){ pendingJoinCode = m[1].toLowerCase(); history.replaceState(null,'',location.pathname); }
+function newAccountLinkFor(code){ return location.origin + location.pathname + '#newaccount=' + code; }
+let pendingJoinCode = null, pendingNewAccountCode = null;
+(function parseGateHash(){
+  let m = location.hash.match(/^#join=([a-z0-9]+)$/i);
+  if (m){ pendingJoinCode = m[1].toLowerCase(); history.replaceState(null,'',location.pathname); return; }
+  m = location.hash.match(/^#newaccount=([a-z0-9]+)$/i);
+  if (m){ pendingNewAccountCode = m[1].toLowerCase(); history.replaceState(null,'',location.pathname); }
 })();
 function applyPendingJoinCode(){
   if (!pendingJoinCode) return;
   $('#tabJoinHouse').click();
   $('#houseCode').value = pendingJoinCode;
 }
+function emptyDB(){
+  const now = new Date(); const k = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  return { [k]: { shares: PEOPLE.map(()=>1/PEOPLE.length), ok:false, i:[] } };
+}
 
 $('#houseCreateBtn').onclick = async ()=>{
   $('#houseErr').textContent = '';
   const name = $('#houseMyName').value.trim(), color = pickedColor('houseColors');
-  const { data: h, error } = await sb.rpc('create_household', { p_name:'Nossa casa', p_display_name:name, p_color:color });
+  const { data: h, error } = await sb.rpc('create_household', { p_name:'Nossa casa', p_display_name:name, p_color:color, p_invite_code: pendingNewAccountCode||null });
   if (error){ $('#houseErr').textContent = error.message; return; }
   await enterHousehold(h, true);
 };
@@ -1206,7 +1275,7 @@ async function enterHousehold(h, justCreated){
   const { data: mem } = await sb.from('household_members').select('*').eq('household_id', h.id);
   applyMembers(mem||[]);
   if (justCreated){
-    DB = fromSeed(); backfillFix(DB); cur = keys().at(-1); save();
+    DB = isAdmin ? fromSeed() : emptyDB(); backfillFix(DB); cur = keys().at(-1); save();
     $('#inviteCode').textContent = h.invite_code;
     openGate('invite');
     $('#inviteCopy').onclick = ()=>{ navigator.clipboard?.writeText(h.invite_code); toast('Código copiado'); };
@@ -1238,6 +1307,16 @@ $('#inviteModalOv').addEventListener('mousedown', e=>{ if (e.target.id==='invite
 $('#inviteModalCopyCode').onclick = ()=>{ navigator.clipboard?.writeText(household.invite_code); toast('Código copiado'); };
 $('#inviteModalCopyLink').onclick = ()=>{ navigator.clipboard?.writeText(inviteLinkFor(household.invite_code)); toast('Link copiado'); };
 
+$('#newAccountBtn').onclick = ()=>{ $('#newAccountModalOv').hidden = false; };
+$('#newAccountModalClose').onclick = ()=>{ $('#newAccountModalOv').hidden = true; };
+$('#newAccountModalOv').addEventListener('mousedown', e=>{ if (e.target.id==='newAccountModalOv') $('#newAccountModalOv').hidden = true; });
+$('#newAccountCopyLink').onclick = async ()=>{
+  const { data: code, error } = await sb.rpc('create_signup_invite');
+  if (error){ toast('Erro: ' + error.message); return; }
+  navigator.clipboard?.writeText(newAccountLinkFor(code));
+  toast('Link copiado — vale pra 1 conta nova');
+};
+
 let booted = false;
 function boot(){
   if (booted) return; booted = true;
@@ -1250,6 +1329,7 @@ function boot(){
   try{
     const { data: { session } } = await sb.auth.getSession();
     if (!session){ openGate('auth'); return; }
+    isAdmin = session.user?.email === ADMIN_EMAIL;
     const { data: h } = await sb.rpc('my_household');
     if (h && h.id) await enterHousehold(h); else openGate('household');
   }catch(err){
