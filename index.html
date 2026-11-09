@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 /* Layout: caderno de contas — barra superior com abas, coluna única no celular, duas colunas no computador. */
 :root{
@@ -280,23 +281,101 @@ th{color:var(--ink-3);font-weight:600}
 .sub-add input{flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:13px}
 .sub-add button{flex:none;font-size:13px;padding:7px 12px}
 .sub-empty{color:var(--ink-3);font-size:12px}
+
+/* tela de login / casa */
+.gate{position:fixed;inset:0;z-index:100;background:var(--bg);display:grid;place-items:center;padding:20px}
+.gate-card{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--sh-lg);padding:28px;display:grid;gap:16px}
+.gate-logo{display:flex;align-items:center;gap:10px}
+.gate-logo .logo{width:40px;height:40px;font-size:19px}
+.gate-logo h1{font-size:20px}
+.gate-tabs{display:flex;background:var(--surface-2);border-radius:999px;padding:3px;gap:2px}
+.gate-tabs button{flex:1;border:0;background:transparent;padding:8px 10px;border-radius:999px;font-weight:600;color:var(--ink-2);font-size:13px}
+.gate-tabs button[aria-selected=true]{background:var(--surface);color:var(--ink);box-shadow:var(--sh-sm)}
+.gate label{font-size:12px;font-weight:600;color:var(--ink-2);display:grid;gap:4px}
+.gate input{padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-weight:500;color:var(--ink);width:100%}
+.gate .err{color:var(--bad);font-size:13px;font-weight:600;min-height:1em}
+.gate .msg{color:var(--good);font-size:13px;font-weight:600;min-height:1em}
+.gate .sub{font-size:13px;color:var(--ink-3);margin:0}
+.gate-swatches{display:flex;gap:8px}
+.gate-swatches button{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.gate-swatches button[aria-pressed=true]{border-color:var(--ink)}
+.gate-step{display:grid;gap:14px}
+.gate-loading{position:fixed;inset:0;z-index:101;background:var(--bg);display:grid;place-items:center;color:var(--ink-3);font-weight:600}
+.invite-box{display:flex;align-items:center;gap:8px;background:var(--accent-soft);border-radius:10px;padding:10px 12px;font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.05em;justify-content:space-between}
+.invite-box button{font-size:12px;padding:5px 10px}
+.gate-switch{text-align:center;font-size:13px;color:var(--ink-3)}
+.gate-switch button{border:0;background:transparent;color:var(--accent);font-weight:700;padding:0}
 footer{color:var(--ink-3);font-size:12px;padding-block:10px 30px}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 
+<div class="gate-loading" id="gateLoading">Carregando…</div>
+
+<div class="gate" id="gate" hidden>
+  <div class="gate-card">
+    <div class="gate-logo"><div class="logo" aria-hidden="true">C</div><div><h1>Contas da Casa</h1></div></div>
+
+    <!-- login / criar conta -->
+    <div id="gateAuth">
+      <div class="gate-tabs">
+        <button type="button" id="tabLogin" aria-selected="true">Entrar</button>
+        <button type="button" id="tabSignup" aria-selected="false">Criar conta</button>
+      </div>
+      <form id="authForm" class="gate-step" style="margin-top:14px" autocomplete="on">
+        <label>E-mail<input type="email" id="authEmail" required autocomplete="username"></label>
+        <label>Senha<input type="password" id="authPass" minlength="6" required autocomplete="current-password"></label>
+        <div class="err" id="authErr"></div>
+        <button class="btn primary" type="submit" id="authSubmit">Entrar</button>
+      </form>
+    </div>
+
+    <!-- depois de logar, sem casa: criar ou entrar com código -->
+    <div id="gateHousehold" hidden class="gate-step">
+      <p class="sub">Falta só uma coisa: crie a sua casa, ou entre com o código que a outra pessoa te mandou.</p>
+      <div class="gate-tabs">
+        <button type="button" id="tabCreateHouse" aria-selected="true">Criar casa</button>
+        <button type="button" id="tabJoinHouse" aria-selected="false">Tenho um código</button>
+      </div>
+      <div id="houseCreate" class="gate-step" style="margin-top:4px">
+        <label>Seu nome<input type="text" id="houseMyName" placeholder="Ex.: Lucas"></label>
+        <label>Cor<div class="gate-swatches" id="houseColors"></div></label>
+        <button class="btn primary" type="button" id="houseCreateBtn">Criar minha casa</button>
+      </div>
+      <div id="houseJoin" class="gate-step" style="margin-top:4px" hidden>
+        <label>Código de convite<input type="text" id="houseCode" placeholder="ex.: a1b2c3d4" style="text-transform:lowercase"></label>
+        <label>Seu nome<input type="text" id="houseMyName2" placeholder="Ex.: Nicoli"></label>
+        <label>Cor<div class="gate-swatches" id="houseColors2"></div></label>
+        <button class="btn primary" type="button" id="houseJoinBtn">Entrar na casa</button>
+      </div>
+      <div class="err" id="houseErr"></div>
+    </div>
+
+    <!-- casa criada: mostra o código pra convidar -->
+    <div id="gateInvite" hidden class="gate-step">
+      <p class="sub">Casa criada! Manda esse código pra outra pessoa da casa entrar:</p>
+      <div class="invite-box"><span id="inviteCode"></span><button class="btn" type="button" id="inviteCopy">Copiar código</button></div>
+      <button class="btn" type="button" id="inviteCopyLink" style="width:100%">Copiar link de convite</button>
+      <button class="btn primary" type="button" id="inviteContinue">Continuar</button>
+    </div>
+
+    <p class="gate-switch" id="gateLogout" hidden><button type="button" id="gateLogoutBtn">Sair da conta</button></p>
+  </div>
+</div>
 
 <header class="top">
   <div class="wrap">
     <div class="brand">
       <div class="logo" aria-hidden="true">C</div>
-      <div><h1>Contas da Casa</h1><small>Lucas &amp; Nicoli</small></div>
+      <div><h1>Contas da Casa</h1><small id="brandSub">Lucas &amp; Nicoli</small></div>
     </div>
     <nav class="tabs" role="tablist">
       <button role="tab" id="tab-mes" aria-selected="true" data-view="mes">Mês</button>
       <button role="tab" id="tab-dash" aria-selected="false" data-view="dashboard">Dashboard</button>
     </nav>
+    <button class="btn ghost" id="inviteBtn" type="button" style="font-size:12px;padding:6px 10px" title="Convidar alguém pra casa">+ Convidar</button>
+    <button class="btn ghost" id="logoutBtn" type="button" style="font-size:12px;padding:6px 10px" title="Sair da conta">Sair</button>
   </div>
 </header>
 
@@ -336,10 +415,7 @@ footer{color:var(--ink-3);font-size:12px;padding-block:10px 30px}
           <p class="sub">Entra no mês que está aberto.</p>
           <form class="add" id="addForm" autocomplete="off">
             <div class="field">Quem pagou
-              <div class="seg">
-                <label><input type="radio" name="who" id="who0" value="0" checked><span><i class="dot" style="background:var(--s1)"></i>Lucas</span></label>
-                <label><input type="radio" name="who" id="who1" value="1"><span><i class="dot" style="background:var(--s2)"></i>Nicoli</span></label>
-              </div>
+              <div class="seg" id="whoRadios"></div>
             </div>
             <div class="f2">
               <label class="field">Categoria
@@ -444,6 +520,18 @@ footer{color:var(--ink-3);font-size:12px;padding-block:10px 30px}
   </div>
 </div>
 
+<div class="modal-ov" id="inviteModalOv" hidden>
+  <div class="modal" role="dialog" aria-label="Convidar alguém pra casa" style="max-width:380px">
+    <div class="modal-head">
+      <h2>Convidar pra casa</h2>
+      <button type="button" class="cp-close" id="inviteModalClose" aria-label="Fechar">×</button>
+    </div>
+    <p class="sub" style="margin:0 0 10px">Só quem receber esse link (ou código) de você consegue entrar na casa. Até 5 pessoas no total.</p>
+    <div class="invite-box" style="margin-bottom:8px"><span id="inviteModalCode"></span><button class="btn" type="button" id="inviteModalCopyCode">Copiar código</button></div>
+    <button class="btn primary" type="button" id="inviteModalCopyLink" style="width:100%">Copiar link de convite</button>
+  </div>
+</div>
+
 <div class="modal-ov" id="catModalOv" hidden>
   <div class="modal" role="dialog" aria-label="Editar categorias e descrições">
     <div class="modal-head">
@@ -462,8 +550,8 @@ const CATS_KEY = 'contasCasa.cats.v1';
 let CATS = CATS_DEFAULT.slice();
 try { const raw = localStorage.getItem(CATS_KEY); if (raw){ const saved = JSON.parse(raw); if (Array.isArray(saved) && saved.length===CATS_DEFAULT.length) CATS = saved; } } catch(e){}
 const saveCats = () => { try{ localStorage.setItem(CATS_KEY, JSON.stringify(CATS)); }catch(e){} };
-const PEOPLE = ['Lucas','Nicoli'];
-const PCOL = ['var(--s1)','var(--s2)'];
+let PEOPLE = ['Lucas','Nicoli'];
+let PCOL = ['var(--s1)','var(--s2)'];
 const MES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 const MES3 = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const KEY = 'contasCasa.v1';
@@ -475,6 +563,7 @@ const mLabel = k => { const [y,m]=k.split('-'); return MES[+m-1][0].toUpperCase(
 const mShort = k => { const [y,m]=k.split('-'); return MES3[+m-1]+'/'+y.slice(2); };
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let uid = 1;
+const newId = () => Date.now()*1000 + Math.floor(Math.random()*1000);
 
 /* subcategorias: sugestões de descrição por categoria, editáveis e expansíveis */
 const SUBCATS_SEED = {
@@ -518,7 +607,7 @@ let DB;
 try { const raw = localStorage.getItem(KEY); if (raw){ DB = JSON.parse(raw); for(const k in DB) for(const it of DB[k].i) uid=Math.max(uid,it.id+1);} } catch(e){}
 if (!DB) DB = fromSeed();
 backfillFix(DB);
-const save = () => { try{ localStorage.setItem(KEY, JSON.stringify(DB)); }catch(e){} };
+const save = () => { try{ localStorage.setItem(KEY, JSON.stringify(DB)); }catch(e){} scheduleSync(); };
 const keys = () => Object.keys(DB).sort();
 let cur = keys().at(-1);
 const isFixed = it => !!(it && it.fix);
@@ -532,13 +621,37 @@ function fixStillActive(it, monthKey){
 
 function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),1800); }
 
+// retorna o array de partes (0..1, soma 1) do mês, do tamanho de PEOPLE.
+// compatível com dados antigos (m.s = parte única da 2ª pessoa) e com m.shares (array por pessoa)
+function getShares(m){
+  const n = PEOPLE.length;
+  if (Array.isArray(m.shares) && m.shares.length===n) return m.shares;
+  if (typeof m.s === 'number' && n===2) return [1-m.s, m.s];
+  return PEOPLE.map(()=>1/n);
+}
+// calcula as transferências necessárias (quem deve pagar pra quem) a partir do saldo de cada pessoa
+function computeTransfers(saldo){
+  const debtors=[], creditors=[];
+  saldo.forEach((v,i)=>{ if (v>0.5) debtors.push({i,amt:v}); else if (v<-0.5) creditors.push({i,amt:-v}); });
+  const out=[]; let di=0, ci=0;
+  while (di<debtors.length && ci<creditors.length){
+    const d=debtors[di], c=creditors[ci], amt=Math.min(d.amt,c.amt);
+    out.push({from:d.i, to:c.i, amt});
+    d.amt-=amt; c.amt-=amt;
+    if (d.amt<0.5) di++;
+    if (c.amt<0.5) ci++;
+  }
+  return out;
+}
 function stats(k){
-  const m = DB[k]; const byCat = CATS.map(()=>0); const paid=[0,0];
-  for (const it of m.i){ byCat[it.c]+=it.v; paid[it.w]+=it.v; }
-  const total = paid[0]+paid[1];
-  const shareN = m.s, shareL = 1-m.s;
-  const owe = [total*shareL, total*shareN];
-  return {total, byCat, paid, owe, shareN, saldoN: owe[1]-paid[1]};
+  const m = DB[k]; const byCat = CATS.map(()=>0); const n = PEOPLE.length; const paid = PEOPLE.map(()=>0);
+  for (const it of m.i){ byCat[it.c]+=it.v; paid[it.w] = (paid[it.w]||0)+it.v; }
+  const total = paid.reduce((a,b)=>a+b,0);
+  const shares = getShares(m);
+  const owe = shares.map(s=>total*s);
+  const saldo = owe.map((o,i)=>o-paid[i]);
+  // compat: mantém paid[0]/[1]/saldoN pra quem ainda usa (dashboard de 2 pessoas)
+  return {total, byCat, paid, owe, shares, saldo, saldoN: saldo[1]||0};
 }
 
 /* ---------- VIEW: MÊS ---------- */
@@ -554,17 +667,27 @@ function renderMonth(){
     $('#mDelta').innerHTML = `<span class="delta ${d>0?'up':'down'}">${d>0?'▲':'▼'} ${pct(Math.abs(d))}</span> <span class="muted" style="font-size:13px">vs ${mLabel(ks[idx-1]).toLowerCase()} (${brl(p)})</span>`;
   } else $('#mDelta').innerHTML='';
   // split
-  const sN = st.saldoN;
-  let settle;
-  if (Math.abs(sN) < 1) settle = 'Tudo certo, ninguém deve nada.';
-  else if (sN > 0) settle = `Nicoli transfere ${brl(sN,2)} para Lucas`;
-  else settle = `Lucas transfere ${brl(-sN,2)} para Nicoli`;
+  const shares = st.shares;
+  const transfers = computeTransfers(st.saldo);
+  const sumPct = Math.round(shares.reduce((a,b)=>a+b,0)*100);
+  const settleHtml = !transfers.length ? 'Tudo certo, ninguém deve nada.'
+    : transfers.map(t=>`${esc(PEOPLE[t.i])} transfere ${brl(t.amt,2)} para ${esc(PEOPLE[t.to])}`).join('<br>');
   $('#mSplit').innerHTML = `
-    <div class="row"><span class="eyebrow">Divisão</span><label class="share-input" for="shareN">Parte da Nicoli <input id="shareN" type="number" min="0" max="100" step="1" value="${Math.round(m.s*100)}">%</label></div>
-    <div class="split-bar" aria-hidden="true"><i style="width:${(1-m.s)*100}%;background:var(--s1)"></i><i style="width:${m.s*100}%;background:var(--s2)"></i></div>
-    ${[0,1].map(w=>`<div class="row"><span class="who"><i class="dot" style="background:${PCOL[w]}"></i>${PEOPLE[w]} · ${pct(w?m.s:1-m.s)}</span><span>parte ${brl(st.owe[w],0)} · pagou ${brl(st.paid[w],0)}</span></div>`).join('')}
-    <div class="settle"><span>${settle}</span><label for="okChk"><input type="checkbox" id="okChk" ${m.ok?'checked':''}> Acerto feito</label></div>`;
-  $('#shareN').onchange = e => { const v=Math.min(100,Math.max(0,+e.target.value||0)); DB[cur].s=v/100; save(); renderMonth(); };
+    <div class="row"><span class="eyebrow">Divisão</span><button type="button" class="btn ghost" id="splitEqual" style="font-size:12px;padding:4px 10px">Dividir igual</button></div>
+    <div class="split-bar" aria-hidden="true">${PEOPLE.map((p,i)=>`<i style="width:${shares[i]*100}%;background:${PCOL[i]}"></i>`).join('')}</div>
+    ${PEOPLE.map((p,i)=>`<div class="row"><span class="who"><i class="dot" style="background:${PCOL[i]}"></i>${esc(p)}</span><label class="share-input" for="share${i}">parte <input id="share${i}" data-i="${i}" type="number" min="0" max="100" step="1" value="${Math.round(shares[i]*100)}">% · ${brl(st.owe[i],0)} · pagou ${brl(st.paid[i],0)}</label></div>`).join('')}
+    ${sumPct!==100?`<div class="muted" style="font-size:12px">Soma das partes: ${sumPct}% (ideal: 100%)</div>`:''}
+    <div class="settle"><span>${settleHtml}</span><label for="okChk"><input type="checkbox" id="okChk" ${m.ok?'checked':''}> Acerto feito</label></div>`;
+  PEOPLE.forEach((p,i)=>{
+    const el = $('#share'+i); if (!el) return;
+    el.onchange = e=>{
+      const v = Math.min(100,Math.max(0,+e.target.value||0))/100;
+      const cm = DB[cur]; const cur_shares = getShares(cm).slice();
+      cur_shares[i] = v; cm.shares = cur_shares; delete cm.s;
+      save(); renderMonth();
+    };
+  });
+  $('#splitEqual').onclick = ()=>{ DB[cur].shares = PEOPLE.map(()=>1/PEOPLE.length); delete DB[cur].s; save(); renderMonth(); toast('Divisão igual pra todos'); };
   $('#okChk').onchange = e => { DB[cur].ok=e.target.checked; save(); toast(e.target.checked?'Acerto marcado como feito':'Acerto desmarcado'); };
   // cats
   const open = new Set([...document.querySelectorAll('.cat.open')].map(e=>+e.dataset.c));
@@ -594,7 +717,7 @@ $('#addForm').addEventListener('submit', e=>{
   if (!(v>0)){ toast('Digite um valor maior que zero'); $('#fVal').focus(); return; }
   const w = +document.querySelector('input[name=who]:checked').value, c=+$('#fCat').value;
   const d = $('#fDesc').value.trim();
-  DB[cur].i.push({id:uid++, w, c, v:Math.round(v*100)/100, d});
+  DB[cur].i.push({id:newId(), w, c, v:Math.round(v*100)/100, d});
   learnSub(c, d); renderSubOptions(c);
   save(); $('#fVal').value=''; $('#fDesc').value='';
   renderMonth(); toast(`Lançado ${brl2(v)} em ${CATS[c]}`);
@@ -606,12 +729,12 @@ $('#newMonth').onclick = ()=>{
   const last = keys().at(-1); const k = nextMonthKey(last);
   // copia os lançamentos fixados (todos os meses, ou dentro do período marcado) do último mês
   const rec = DB[last].i.filter(it=>fixStillActive(it,k));
-  DB[k] = {s:DB[last].s, ok:false, i:rec.map(it=>({...it,id:uid++,fix:it.fix?{...it.fix}:undefined}))};
+  DB[k] = {s:DB[last].s, ok:false, i:rec.map(it=>({...it,id:newId(),fix:it.fix?{...it.fix}:undefined}))};
   cur=k; save(); renderMonth(); toast(rec.length? `${mLabel(k)} criado com as contas fixas` : `${mLabel(k)} criado`);
 };
 $('#resetBtn').onclick = ()=>{ $('#resetConfirm').hidden=false; };
 $('#resetNo').onclick = ()=>{ $('#resetConfirm').hidden=true; };
-$('#resetYes').onclick = ()=>{ DB=fromSeed(); save(); cur=keys().at(-1); $('#resetConfirm').hidden=true; renderMonth(); toast('Dados da planilha restaurados'); };
+$('#resetYes').onclick = ()=>{ DB=fromSeed(); backfillFix(DB); save(); cur=keys().at(-1); $('#resetConfirm').hidden=true; renderMonth(); toast('Dados da planilha restaurados'); syncAllToCloud(); };
 
 /* ---------- VIEW: DASHBOARD ---------- */
 let period = '12';
@@ -685,7 +808,7 @@ function renderDash(){
   const iMax = totals.indexOf(Math.max(...totals)), iMin = totals.indexOf(Math.min(...totals));
   const last3 = totals.slice(-3).reduce((a,b)=>a+b,0)/Math.min(3,n);
   const tr = avg? (last3-avg)/avg : 0;
-  const paidL = S.reduce((a,s)=>a+s.paid[0],0), paidN = S.reduce((a,s)=>a+s.paid[1],0);
+  const paidByPerson = PEOPLE.map((p,i)=>S.reduce((a,s)=>a+(s.paid[i]||0),0));
   $('#kpis').innerHTML = [
     ['Total no período', brl(sum), `${n} ${n>1?'meses':'mês'}`],
     ['Média por mês', brl(avg), `de ${mShort(ks[0])} a ${mShort(ks.at(-1))}`],
@@ -710,7 +833,7 @@ function renderDash(){
   }
   ins.push(`Nos últimos 3 meses a casa gastou em média ${brl(last3)} por mês, ${tr>=0?'acima':'abaixo'} da média do período em ${pct(Math.abs(tr))}.`);
   const ifood = catTot[2]; if (ifood>0) ins.push(`Delivery (Ifood) somou ${brl(ifood)}, ou ${brl(ifood/n)} por mês. Cortar metade disso libera cerca de ${brl(ifood/n/2)} por mês.`);
-  ins.push(`No período, Lucas pagou ${brl(paidL)} (${pct(paidL/sum)}) e Nicoli pagou ${brl(paidN)} (${pct(paidN/sum)}).`);
+  ins.push(`No período, ${PEOPLE.map((p,i)=>`${esc(p)} pagou ${brl(paidByPerson[i])} (${pct(paidByPerson[i]/sum)})`).join(', ')}.`);
   $('#insights').innerHTML = ins.map((t,i)=>`<li><span class="ic">${i+1}</span><span>${t}</span></li>`).join('');
 
   // monthly chart
@@ -730,9 +853,11 @@ function renderDash(){
   }).join('');
 
   // who paid
-  barChart($('#cWho'), lbl, [{color:'var(--s1)', vals:S.map(s=>s.paid[0])},{color:'var(--s2)', vals:S.map(s=>s.paid[1])}], {aria:'Quem pagou por mês', tip:i=>`<b>${mLabel(ks[i])}</b><br>Lucas: <b>${brl(S[i].paid[0])}</b><br>Nicoli: <b>${brl(S[i].paid[1])}</b>`});
-  const saldo = S.reduce((a,s)=>a+s.saldoN,0);
-  $('#whoSum').innerHTML = saldo<0 ? `Somando os acertos do período, Lucas repassou ${brl(-saldo)} para Nicoli, porque a maior parte das contas passa pelo cartão dela.` : `Somando os acertos do período, Nicoli repassou ${brl(saldo)} para Lucas, porque a maior parte das contas passa pelo cartão dele.`;
+  barChart($('#cWho'), lbl, PEOPLE.map((p,i)=>({color:PCOL[i], vals:S.map(s=>s.paid[i]||0)})), {aria:'Quem pagou por mês', tip:i=>`<b>${mLabel(ks[i])}</b><br>${PEOPLE.map((p,w)=>`${esc(p)}: <b>${brl(S[i].paid[w]||0)}</b>`).join('<br>')}`});
+  const totalSaldo = PEOPLE.map((p,i)=>S.reduce((a,s)=>a+(s.saldo[i]||0),0));
+  const transfersP = computeTransfers(totalSaldo);
+  $('#whoSum').innerHTML = !transfersP.length ? 'Somando os acertos do período, ninguém deve nada.' :
+    'Somando os acertos do período, ' + transfersP.map(t=>`${esc(PEOPLE[t.i])} repassou ${brl(t.amt)} para ${esc(PEOPLE[t.to])}`).join(', ') + '.';
 
   // top entries
   const all = []; ks.forEach(k=>DB[k].i.forEach(it=>{ if(it.c!==0) all.push({...it,k}); }));
@@ -761,7 +886,7 @@ function renderPadrao(focusKey){
   const sN = st.saldoN;
   const settle = Math.abs(sN)<1 ? 'R$ 0' : brl(Math.abs(sN),2);
   const settleWho = Math.abs(sN)<1 ? 'ninguém deve' : sN>0 ? 'Nicoli paga ao Lucas' : 'Lucas paga à Nicoli';
-  $('#pdSum').innerHTML = [['Total do mês',brl2(st.total),`Nicoli ${pct(m.s)} · Lucas ${pct(1-m.s)}`],['Lucas pagou',brl2(st.paid[0]),`parte dele ${brl(st.owe[0])}`],['Nicoli pagou',brl2(st.paid[1]),`parte dela ${brl(st.owe[1])}`],['Acerto',settle,settleWho+(m.ok?' · feito':' · pendente')]]
+  $('#pdSum').innerHTML = [['Total do mês',brl2(st.total),`Nicoli ${pct(st.shares[1])} · Lucas ${pct(st.shares[0])}`],['Lucas pagou',brl2(st.paid[0]),`parte dele ${brl(st.owe[0])}`],['Nicoli pagou',brl2(st.paid[1]),`parte dela ${brl(st.owe[1])}`],['Acerto',settle,settleWho+(m.ok?' · feito':' · pendente')]]
     .map(([a,b,c])=>`<div class="kpi"><span class="eyebrow">${a}</span><b class="num">${b}</b><small>${c}</small></div>`).join('');
   $('#pdSheets').innerHTML = [0,1].map(w=>{
     const cols = PCOLS[w].map(col=>({...col, its:m.i.filter(it=>it.w===w && col.f(it))})).filter(col=>!col.opt || col.its.length || w===1);
@@ -785,7 +910,7 @@ function commitCell(el){
   if (el.classList.contains('add')){
     if (!(v>0)) { el.value=''; return false; }
     const w=+el.dataset.w, col=PCOLS[w].find(c=>c.k===el.dataset.col);
-    m.i.push({id:uid++, w, c:col.c, v, d:col.d||''});
+    m.i.push({id:newId(), w, c:col.c, v, d:col.d||''});
   } else {
     const it = m.i.find(x=>x.id===+el.dataset.id); if(!it) return false;
     if (v>0){ if (v===it.v) return false; it.v=v; } else m.i = m.i.filter(x=>x!==it);
@@ -930,6 +1055,7 @@ $('#pdNext').onclick = ()=>{ const ks=keys(); cur=ks[Math.min(ks.length-1,ks.ind
 /* ---------- tabs ---------- */
 const viewFromHash = () => ({'#dashboard':'dashboard','#padrao':'padrao'})[location.hash] || 'mes';
 function show(view){
+  if (view==='padrao' && PEOPLE.length!==2){ toast('Lançamento padrão só funciona com 2 pessoas na casa'); view='mes'; if (location.hash==='#padrao') history.replaceState(null,'','#mes'); }
   const dash = view==='dashboard';
   $('#view-mes').hidden = view!=='mes'; $('#view-dash').hidden = !dash; $('#view-padrao').hidden = view!=='padrao';
   $('#tab-mes').setAttribute('aria-selected', !dash); $('#tab-dash').setAttribute('aria-selected', dash);
@@ -937,9 +1063,199 @@ function show(view){
   window.scrollTo(0,0);
 }
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{ const v=b.dataset.view; if(location.hash==='#'+v) show(v); else location.hash = v; });
-window.addEventListener('hashchange', ()=>show(viewFromHash()));
-let rt; window.addEventListener('resize', ()=>{ clearTimeout(rt); rt=setTimeout(()=>{ if(!$('#view-dash').hidden) renderDash(); },150); });
-show(viewFromHash());
+
+/* ---------- LOGIN + CASA (Supabase) ---------- */
+const SB_URL = 'https://ubcxtbbmiacicsqkmsqe.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InViY3h0YmJtaWFjaWNzcWttc3FlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQyMDU4NjYsImV4cCI6MjEwOTc4MTg2Nn0.M-bT6NB2qjmoprodtk0ZMt80bDyCvSbQQlYv59oXEwM';
+const sb = window.supabase.createClient(SB_URL, SB_KEY);
+
+let household = null;
+let members = [];
+const SWATCHES = ['#2a78d6','#eb6834','#2fae6a','#b84fd1','#d13c5e','#5a6ad1'];
+
+function renderSwatches(id, picked){
+  const box = $('#'+id);
+  box.innerHTML = SWATCHES.map(c=>`<button type="button" data-c="${c}" aria-pressed="${c===picked}" style="background:${c}"></button>`).join('');
+  box.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    box.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true');
+  });
+}
+const pickedColor = id => $('#'+id).querySelector('[aria-pressed="true"]')?.dataset.c || SWATCHES[0];
+
+function applyMembers(rows){
+  members = rows.slice().sort((a,b)=>a.slot-b.slot);
+  PEOPLE = members.map(m=>m.display_name);
+  PCOL = members.map(m=>m.color);
+  if (!PEOPLE.length){ PEOPLE=['Pessoa 1','Pessoa 2']; }
+  if (PEOPLE.length<2){ PEOPLE[1]='Pessoa 2'; }
+  if (!PCOL.length){ PCOL=['#2a78d6','#eb6834']; }
+  if (PCOL.length<2){ PCOL[1]='#eb6834'; }
+  const sub = $('#brandSub'); if (sub) sub.textContent = PEOPLE.join(' & ');
+  renderWhoRadios();
+  const pd = $('#openPadrao'); if (pd) pd.hidden = PEOPLE.length!==2;
+}
+function renderWhoRadios(){
+  const box = $('#whoRadios'); if (!box) return;
+  box.innerHTML = PEOPLE.map((p,i)=>`<label><input type="radio" name="who" id="who${i}" value="${i}" ${i===0?'checked':''}><span><i class="dot" style="background:${PCOL[i]}"></i>${esc(p)}</span></label>`).join('');
+}
+
+async function pullCloud(){
+  const { data: monthRows } = await sb.from('months').select('*').eq('household_id', household.id);
+  const { data: entryRows } = await sb.from('entries').select('*').eq('household_id', household.id);
+  const d = {};
+  for (const mr of (monthRows||[])) d[mr.key] = { ...(mr.shares?{shares:mr.shares}:{s:+mr.share}), ok:!!mr.settled, i:[] };
+  for (const er of (entryRows||[])){
+    if (!d[er.month_key]) d[er.month_key] = {s:0.5, ok:false, i:[]};
+    d[er.month_key].i.push({ id:er.id, w:er.slot, c:er.category, v:+er.value, d:er.description||'',
+      fix: er.fixed_mode ? (er.fixed_mode==='period' ? {mode:'period', until:er.fixed_until} : {mode:'all'}) : undefined });
+  }
+  return d;
+}
+
+let syncT;
+function scheduleSync(){
+  if (!household) return;
+  clearTimeout(syncT);
+  syncT = setTimeout(()=>{ syncMonthToCloud(cur).catch(()=>{}); }, 700);
+}
+async function syncMonthToCloud(k){
+  if (!household || !DB[k]) return;
+  const m = DB[k];
+  await sb.from('months').upsert({ household_id:household.id, key:k, share:(m.s ?? 0.5), shares:(m.shares ? JSON.stringify(m.shares) : null), settled:!!m.ok });
+  await sb.from('entries').delete().eq('household_id', household.id).eq('month_key', k);
+  if (m.i.length){
+    await sb.from('entries').insert(m.i.map(it=>({
+      id: it.id, household_id: household.id, month_key: k, slot: it.w, category: it.c,
+      value: it.v, description: it.d||'',
+      fixed_mode: it.fix ? it.fix.mode : null,
+      fixed_until: (it.fix && it.fix.mode==='period') ? it.fix.until : null
+    })));
+  }
+}
+async function syncAllToCloud(){
+  if (!household) return;
+  for (const k of keys()) await syncMonthToCloud(k);
+}
+
+function showGateStep(step){
+  $('#gateAuth').hidden = step!=='auth';
+  $('#gateHousehold').hidden = step!=='household';
+  $('#gateInvite').hidden = step!=='invite';
+  $('#gateLogout').hidden = step==='auth';
+}
+function openGate(step){ $('#gateLoading').hidden=true; $('#gate').hidden=false; showGateStep(step); if (step==='household') applyPendingJoinCode(); }
+function closeGate(){ $('#gate').hidden=true; $('#gateLoading').hidden=true; }
+
+$('#tabLogin').onclick = ()=>{ $('#tabLogin').setAttribute('aria-selected','true'); $('#tabSignup').setAttribute('aria-selected','false'); $('#authSubmit').textContent='Entrar'; };
+$('#tabSignup').onclick = ()=>{ $('#tabSignup').setAttribute('aria-selected','true'); $('#tabLogin').setAttribute('aria-selected','false'); $('#authSubmit').textContent='Criar conta'; };
+$('#tabCreateHouse').onclick = ()=>{ $('#tabCreateHouse').setAttribute('aria-selected','true'); $('#tabJoinHouse').setAttribute('aria-selected','false'); $('#houseCreate').hidden=false; $('#houseJoin').hidden=true; };
+$('#tabJoinHouse').onclick = ()=>{ $('#tabJoinHouse').setAttribute('aria-selected','true'); $('#tabCreateHouse').setAttribute('aria-selected','false'); $('#houseJoin').hidden=false; $('#houseCreate').hidden=true; };
+renderSwatches('houseColors', SWATCHES[0]);
+renderSwatches('houseColors2', SWATCHES[1]);
+
+$('#authForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const email = $('#authEmail').value.trim(), pass = $('#authPass').value;
+  const isSignup = $('#tabSignup').getAttribute('aria-selected')==='true';
+  $('#authErr').textContent = ''; $('#authSubmit').disabled = true;
+  try{
+    const { error } = isSignup ? await sb.auth.signUp({email, password:pass}) : await sb.auth.signInWithPassword({email, password:pass});
+    if (error) throw error;
+    await afterLogin();
+  }catch(err){
+    $('#authErr').textContent = (err && err.message) || 'Erro ao entrar';
+  }finally{ $('#authSubmit').disabled = false; }
+});
+
+async function afterLogin(){
+  const { data: h } = await sb.rpc('my_household');
+  if (h && h.id) await enterHousehold(h); else openGate('household');
+}
+
+/* link de convite (?#join=codigo): só quem recebe o link cai direto na tela de "entrar com código" */
+function inviteLinkFor(code){ return location.origin + location.pathname + '#join=' + code; }
+let pendingJoinCode = null;
+(function parseJoinHash(){
+  const m = location.hash.match(/^#join=([a-z0-9]+)$/i);
+  if (m){ pendingJoinCode = m[1].toLowerCase(); history.replaceState(null,'',location.pathname); }
+})();
+function applyPendingJoinCode(){
+  if (!pendingJoinCode) return;
+  $('#tabJoinHouse').click();
+  $('#houseCode').value = pendingJoinCode;
+}
+
+$('#houseCreateBtn').onclick = async ()=>{
+  $('#houseErr').textContent = '';
+  const name = $('#houseMyName').value.trim(), color = pickedColor('houseColors');
+  const { data: h, error } = await sb.rpc('create_household', { p_name:'Nossa casa', p_display_name:name, p_color:color });
+  if (error){ $('#houseErr').textContent = error.message; return; }
+  await enterHousehold(h, true);
+};
+$('#houseJoinBtn').onclick = async ()=>{
+  $('#houseErr').textContent = '';
+  const code = $('#houseCode').value.trim().toLowerCase(), name = $('#houseMyName2').value.trim(), color = pickedColor('houseColors2');
+  const { data: h, error } = await sb.rpc('join_household', { p_code:code, p_display_name:name, p_color:color });
+  if (error){ $('#houseErr').textContent = error.message; return; }
+  await enterHousehold(h);
+};
+
+async function enterHousehold(h, justCreated){
+  household = h;
+  const { data: mem } = await sb.from('household_members').select('*').eq('household_id', h.id);
+  applyMembers(mem||[]);
+  if (justCreated){
+    DB = fromSeed(); backfillFix(DB); cur = keys().at(-1); save();
+    $('#inviteCode').textContent = h.invite_code;
+    openGate('invite');
+    $('#inviteCopy').onclick = ()=>{ navigator.clipboard?.writeText(h.invite_code); toast('Código copiado'); };
+    $('#inviteCopyLink').onclick = ()=>{ navigator.clipboard?.writeText(inviteLinkFor(h.invite_code)); toast('Link copiado'); };
+    $('#inviteContinue').onclick = ()=>{ closeGate(); boot(); syncAllToCloud(); };
+  } else {
+    const cloud = await pullCloud();
+    DB = Object.keys(cloud).length ? cloud : fromSeed();
+    backfillFix(DB); cur = keys().at(-1); save();
+    closeGate(); boot();
+    if (!Object.keys(cloud).length) syncAllToCloud();
+  }
+}
+
+async function doLogout(){
+  try{ await sb.auth.signOut(); }catch(e){}
+  location.reload();
+}
+$('#logoutBtn').onclick = doLogout;
+$('#gateLogoutBtn').onclick = doLogout;
+
+$('#inviteBtn').onclick = ()=>{
+  if (!household) return;
+  $('#inviteModalCode').textContent = household.invite_code;
+  $('#inviteModalOv').hidden = false;
+};
+$('#inviteModalClose').onclick = ()=>{ $('#inviteModalOv').hidden = true; };
+$('#inviteModalOv').addEventListener('mousedown', e=>{ if (e.target.id==='inviteModalOv') $('#inviteModalOv').hidden = true; });
+$('#inviteModalCopyCode').onclick = ()=>{ navigator.clipboard?.writeText(household.invite_code); toast('Código copiado'); };
+$('#inviteModalCopyLink').onclick = ()=>{ navigator.clipboard?.writeText(inviteLinkFor(household.invite_code)); toast('Link copiado'); };
+
+let booted = false;
+function boot(){
+  if (booted) return; booted = true;
+  window.addEventListener('hashchange', ()=>show(viewFromHash()));
+  let rt; window.addEventListener('resize', ()=>{ clearTimeout(rt); rt=setTimeout(()=>{ if(!$('#view-dash').hidden) renderDash(); },150); });
+  show(viewFromHash());
+}
+
+(async function initAuth(){
+  try{
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session){ openGate('auth'); return; }
+    const { data: h } = await sb.rpc('my_household');
+    if (h && h.id) await enterHousehold(h); else openGate('household');
+  }catch(err){
+    openGate('auth');
+  }
+})();
 </script>
 
 </body>
